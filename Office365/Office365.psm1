@@ -34,8 +34,8 @@
             do
 			{
                 $stillblank = $false
-                $Global:CloudamourCred = Get-Credential -Message "$ConnectMessage"
-                if ($Global:CloudamourCred -eq $null)
+                $Global:TenantCred = Get-Credential -Message "$ConnectMessage"
+                if ($Global:TenantCred -eq $null)
 				{
                     $ConnectMessage = "You did not enter any credentials, please try again."
                     $attempt++
@@ -44,7 +44,7 @@
 				{
                     $stillblank = $true
                 }
-            } while (($Global:CloudamourCred -eq $null) -and ($stillblank -eq $false))
+            } while (($Global:TenantCred -eq $null) -and ($stillblank -eq $false))
             if ($stillblank -eq $true)
 			{
                 Write-Error "Credentials are null."
@@ -53,10 +53,10 @@
 			{
                 try
 				{
-					$CloudamourSession = New-PSSession –ConfigurationName Microsoft.Exchange -WarningAction SilentlyContinue `
-					-ConnectionUri https://ps.outlook.com/powershell -Credential $Global:CloudamourCred -Authentication Basic -AllowRedirection -ErrorAction SilentlyContinue
-					Import-PSSession $CloudamourSession -AllowClobber | Out-Null
-					Connect-MsolService –Credential $Global:CloudamourCred | out-null
+					$TenantSession = New-PSSession –ConfigurationName Microsoft.Exchange -WarningAction SilentlyContinue `
+					-ConnectionUri https://ps.outlook.com/powershell -Credential $Global:TenantCred -Authentication Basic -AllowRedirection -ErrorAction SilentlyContinue
+					Import-PSSession $TenantSession -AllowClobber | Out-Null
+					Connect-MsolService –Credential $Global:TenantCred | out-null
 					$CompanyName = (Get-MsolCompanyInformation).DisplayName
 					if ($CompanyName -ne $null)
 					{
@@ -127,7 +127,7 @@ function Get-MsolPartnerTenant
 
 
 			.EXAMPLE
-			Exports list to Cloudamour AppData Folder.
+			Exports list to Partner AppData Folder.
 
 			To TXT File:
 			Get-MsolPartnerTenant -ExportToTxt
@@ -160,8 +160,14 @@ function Get-MsolPartnerTenant
                 Write-Error "Please install the Azure Active Directory Module for Windows PowerShell (64-bit version) and it's prerequisites to use this command. For more information, please visit https://technet.microsoft.com/en-ca/library/jj151815.aspx#bkmk_installmodule."
                 break
             }
+            if (!(Test-Path $home\PartnerAlias.txt))
+            {
+                "partnerdomain.com" > $home\PartnerAlias.txt
+            }
+            $PartnerDomain = gc $home\PartnerAlias.txt
+            Write-Warning "Make sure you have stored the domain name for your partner credentials in $home\PartnerAlias.txt."
 			$ErrorActionPreference = "SilentlyContinue"
-			$MSOLService = (Get-MsolPartnerInformation).PartnerCompanyName -like "*Cloudamour Ltd*"
+			$MSOLService = $Global:TenantCred.Username -ilike "*@$PartnerDomain*"
 			if (!$MSOLService)
 			{
 				$Hour = (Get-Date).Hour
@@ -177,14 +183,14 @@ function Get-MsolPartnerTenant
 				{
 				    $greeting = "Good Afternoon $username"
 				}
-				$ConnectMessage = "$greeting. Please enter your Cloudamour credentials."
+				$ConnectMessage = "$greeting. Please enter your Partner credentials."
 				do
 				{
 				    $stillblank = $false
-					if ($Global:CloudamourCred -eq $null)
+					if ($Global:TenantCred -eq $null)
 					{
-						$Global:CloudamourCred = Get-Credential -Message "$ConnectMessage"
-						if ($Global:CloudamourCred -eq $null)
+						$Global:TenantCred = Get-Credential -Message "$ConnectMessage"
+						if ($Global:TenantCred -eq $null)
 						{
 						    $ConnectMessage = "You did not enter any credentials, please try again."
 						    $attempt++
@@ -197,19 +203,12 @@ function Get-MsolPartnerTenant
 					}
 					else
 					{
-						if ($Global:CloudamourCred.Username -ilike "*@cloudamour.com*")
-						{
-
-						}
-						else
-						{
-							$ConnectMessage = "The credentials you had cached were not valid, please enter your Cloudamour credentials."
-							$Global:CloudamourCred = $null
-						}
+						$ConnectMessage = "The credentials you had cached were not valid, please enter your Partner credentials."
+						$Global:TenantCred = $null
 					}
 
 
-				} while (($Global:CloudamourCred -eq $null) -and ($stillblank -eq $false))
+				} while (($Global:TenantCred -eq $null) -and ($stillblank -eq $false))
 				if ($stillblank -eq $true)
 				{
 					$ErrorActionPreference = "Continue"
@@ -220,13 +219,13 @@ function Get-MsolPartnerTenant
 				{
 
 					$ErrorActionPreference = "SilentlyContinue"
-					Connect-MsolService -Credential $Global:CloudamourCred
+					Connect-MsolService -Credential $Global:TenantCred
 					$Login = $?
 					if (!$Login)
 					{
 						$ErrorActionPreference = "Continue"
 						Write-Error "Authentication Failed, please check your credentials."
-						$Global:CloudamourCred = $null
+						$Global:TenantCred = $null
 						Break
 					}
 					else
@@ -300,10 +299,10 @@ function Get-MsolPartnerTenant
 						$MSOLTenantDefaultDomain = $MSOLTenants.DefaultDomainName
 						$uri = "https://ps.outlook.com/powershell-liveid?DelegatedOrg="
 						$ErrorActionPreference = "Continue"
-						$CloudamourSession = New-PSSession -name "$MSOLTenantName Session" –ConfigurationName Microsoft.Exchange -WarningAction SilentlyContinue `
-						-ConnectionUri $($uri+$MSOLTenantDefaultDomain) -Credential $Global:CloudamourCred -Authentication Basic -AllowRedirection -ErrorAction SilentlyContinue
+						$TenantSession = New-PSSession -name "$MSOLTenantName Session" –ConfigurationName Microsoft.Exchange -WarningAction SilentlyContinue `
+						-ConnectionUri $($uri+$MSOLTenantDefaultDomain) -Credential $Global:TenantCred -Authentication Basic -AllowRedirection -ErrorAction SilentlyContinue
 						$WarningPreference = "SilentlyContinue"
-						Import-PSSession $CloudamourSession -AllowClobber | Out-Null
+						Import-PSSession $TenantSession -AllowClobber | Out-Null
 						Write-Host " "
 						Write-Host "Connected to $MSOLTenantName's Exchange Online."
 						Write-host " "
@@ -419,7 +418,7 @@ function Backup-MsolUser
                 break
             }
             # CREATE APPDATA FOLDER
-            $PSData = "$env:APPDATA\Cloudamour"
+            $PSData = "$env:APPDATA\TenantData"
             If (!(Test-Path $PSData))
             {
                 md $PSData | Out-Null 
@@ -493,7 +492,7 @@ function Backup-Mailbox
                 break
             }
             # CREATE APPDATA FOLDER
-            $PSData = "$env:APPDATA\Cloudamour"
+            $PSData = "$env:APPDATA\TenantData"
             If (!(Test-Path $PSData))
             {
                 md $PSData | Out-Null 
